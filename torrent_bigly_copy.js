@@ -1,4 +1,4 @@
-[28.07.2026 18:48] Александр: (function () {
+(function () {
   if (window.__torrent_bigly_copy_loaded) return;
   window.__torrent_bigly_copy_loaded = true;
 
