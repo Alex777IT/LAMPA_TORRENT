@@ -1,4 +1,7 @@
 (function () {
+  if (window.__torrent_bigly_copy_loaded) return;
+  window.__torrent_bigly_copy_loaded = true;
+
   const PLUGIN = 'torrent_bigly_diag';
 
   function log() {
@@ -13,18 +16,6 @@
       else if (typeof alert === 'function') alert(msg);
     } catch (e) {
       try { alert(msg); } catch (_) {}
-    }
-  }
-
-  function safeStringify(v) {
-    try {
-      return JSON.stringify(v, function (k, val) {
-        if (val && val.nodeType) return '[DOM]';
-        if (typeof val === 'function') return '[Function]';
-        return val;
-      }, 2);
-    } catch (e) {
-      try { return String(v); } catch (_) { return '[unprintable]'; }
     }
   }
 
@@ -79,6 +70,7 @@
   function openBigly(url) {
     const pkg = 'com.biglybt.android.client';
     const intents = [];
+
     if (/^magnet:/i.test(url)) {
       intents.push(intent:${url}#Intent;scheme=magnet;package=${pkg};end);
       intents.push(url);
@@ -86,6 +78,7 @@
       intents.push(url);
       intents.push(intent://${encodeURIComponent(url)}#Intent;package=${pkg};end);
     }
+
     for (const u of intents) {
       try {
         log('trying open', u);
@@ -119,3 +112,71 @@
       log('clearMenu error', e);
     }
   }
+
+  function onEvent(tag, e) {
+    inspectEvent(tag, e);
+    const element = e && e.element ? e.element : null;
+    const item = e && e.item ? e.item : null;
+    const menu = e && e.menu ? e.menu : null;
+    const url = getUrl(element) || getUrl(item);
+
+    if (!url) return;
+
+    log('url found', url);
+
+    if (menu) {
+      clearMenu(menu);
+
+      addItem(menu, 'Скопировать ссылку', function () {
+        const ok = copyText(url);
+        toast(ok ? 'Ссылка скопирована' : 'Не удалось скопировать ссылку');
+        log('copy result', ok, url);
+      });
+
+      addItem(menu, 'Открыть в BiglyBT', function () {
+        const ok = openBigly(url);
+        toast(ok ? 'Открываю BiglyBT' : 'Не удалось открыть BiglyBT');
+        log('open result', ok, url);
+      });
+    } else {
+      toast('URL найден: ' + url);
+    }
+  }
+
+  function init() {
+    try {
+      toast('Диагностика плагина запущена');
+      log('init called', !!window.Lampa, window.appready);
+
+      if (!window.Lampa  !Lampa.Listener  typeof Lampa.Listener.follow !== 'function') {
+        log('Lampa or Listener missing');
+        return;
+      }
+
+      Lampa.Listener.follow('app', function (e) {
+        log('app event', e);
+      });
+
+      Lampa.Listener.follow('full', function (e) {
+        onEvent('full', e);
+      });
+
+      Lampa.Listener.follow('torrent', function (e) {
+        onEvent('torrent', e);
+      });
+
+      Lampa.Listener.follow('menu', function (e) {
+        log('menu event', e);
+      });
+
+      log('listeners attached');
+    } catch (e) {
+      log('init error', e);
+      toast('Ошибка плагина: ' + e);
+    }
+  }
+
+  if (window.Lampa && window.appready) init();
+  else if (window.Lampa) document.addEventListener('lampa:init', init, { once: true });
+  else document.addEventListener('lampa:init', init, { once: true });
+})();
