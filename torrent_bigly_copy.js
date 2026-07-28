@@ -42,16 +42,27 @@
     }
   }
 
-  function openBigly(url) {
-    const pkg = 'com.biglybt.android.client';
-    const intents = [];
+  function getUrl(movie) {
+    if (!movie) return '';
+    return String(movie.MagnetUri || movie.magnet || movie.link || movie.url || movie.href || movie.torrent || movie.uri || movie.Link || '');
+  }
 
+  function buildIntent(url) {
+    const pkg = 'com.biglybt.android.client';
     if (/^magnet:/i.test(url)) {
-      intents.push(`intent:${url}#Intent;scheme=magnet;package=${pkg};end`);
+      return `intent:${url}#Intent;scheme=magnet;package=${pkg};action=android.intent.action.VIEW;end`;
+    }
+    return `intent://${encodeURIComponent(url)}#Intent;package=${pkg};action=android.intent.action.VIEW;end`;
+  }
+
+  function openBigly(url) {
+    const intents = [];
+    if (/^magnet:/i.test(url)) {
+      intents.push(buildIntent(url));
       intents.push(url);
     } else {
       intents.push(url);
-      intents.push(`intent://${encodeURIComponent(url)}#Intent;package=${pkg};end`);
+      intents.push(buildIntent(url));
     }
 
     for (const u of intents) {
@@ -66,60 +77,45 @@
     return false;
   }
 
-  function getUrl(movie) {
-    if (!movie) return '';
-    return String(movie.MagnetUri || movie.magnet || movie.link || movie.url || movie.href || movie.torrent || movie.uri || movie.Link || '');
-  }
-
   function addButton(render, movie) {
     if (!render || !movie) return;
-    if (render.find('.torrent-bigly-btn').length) return;
+    if (render.find('.torrent-bigly-btn-wrap').length) return;
 
     const url = getUrl(movie);
     if (!url) return;
 
-    const btn = $('<div class="torrent-bigly-btn">Скачать торрент в BiglyBT</div>');
-    btn.css({
-      marginTop: '10px',
-      padding: '12px 16px',
-      borderRadius: '10px',
-      background: '#2b7cff',
-      color: '#fff',
-      textAlign: 'center',
-      fontWeight: '700',
-      cursor: 'pointer'
-    });
+    const wrap = $(
+      '<div class="torrent-bigly-btn-wrap" style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;"></div>'
+    );
 
-    btn.on('hover:enter click', function () {
+    const openBtn = $(
+      '<div class="torrent-bigly-btn" style="padding:12px 16px; border-radius:10px; background:#2b7cff; color:#fff; font-weight:700; cursor:pointer;">Скачать торрент в BiglyBT</div>'
+    );
+
+    const copyBtn = $(
+      '<div class="torrent-bigly-copy" style="padding:12px 16px; border-radius:10px; background:#444; color:#fff; font-weight:700; cursor:pointer;">Скопировать magnet</div>'
+    );
+
+    openBtn.on('click hover:enter', function () {
       const ok = openBigly(url);
       toast(ok ? 'Открываю BiglyBT' : 'Не удалось открыть BiglyBT');
     });
 
-    const copy = $('<div class="torrent-bigly-copy">Скопировать ссылку</div>');
-    copy.css({
-      marginTop: '8px',
-      padding: '10px 14px',
-      borderRadius: '10px',
-      background: '#444',
-      color: '#fff',
-      textAlign: 'center',
-      cursor: 'pointer'
-    });
-
-    copy.on('hover:enter click', function () {
+    copyBtn.on('click hover:enter', function () {
       const ok = copyText(url);
-      toast(ok ? 'Ссылка скопирована' : 'Не удалось скопировать ссылку');
+      toast(ok ? 'Magnet скопирован' : 'Не удалось скопировать magnet');
     });
 
-    render.after(btn);
-    render.after(copy);
+    wrap.append(openBtn).append(copyBtn);
+    render.after(wrap);
     log('buttons added', url);
   }
 
-  function bindToCurrent() {
+  function bindCurrent() {
     try {
       const act = Lampa.Activity && typeof Lampa.Activity.active === 'function' ? Lampa.Activity.active() : null;
       if (!act || act.component !== 'full' || !act.activity || typeof act.activity.render !== 'function') return;
+
       const render = act.activity.render().find('.view--torrent');
       const movie = act.card || act.movie || (act.data && act.data.movie) || null;
       addButton(render, movie);
@@ -131,9 +127,7 @@
   function init() {
     try {
       toast('Плагин подключён');
-      log('init');
-
-      bindToCurrent();
+      bindCurrent();
 
       if (!window.Lampa || !Lampa.Listener || typeof Lampa.Listener.follow !== 'function') return;
 
