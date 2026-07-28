@@ -1,96 +1,146 @@
 (function () {
-  if (window.__torrent_test_loaded) return;
-  window.__torrent_test_loaded = true;
+  if (window.__torrent_bigly_menu_loaded) return;
+  window.__torrent_bigly_menu_loaded = true;
+
+  const PLUGIN = 'torrent_bigly_menu';
+
+  function log() {
+    try { console.log.apply(console, ['[' + PLUGIN + ']'].concat([].slice.call(arguments))); } catch (e) {}
+  }
 
   function toast(msg) {
     try {
       if (window.Lampa && Lampa.Noty && typeof Lampa.Noty.show === 'function') Lampa.Noty.show(msg);
-      else alert(msg);
+      else if (typeof alert === 'function') alert(msg);
     } catch (e) {
       try { alert(msg); } catch (_) {}
     }
   }
 
-  function log() {
-    try { console.log.apply(console, ['[torrent_test]'].concat([].slice.call(arguments))); } catch (e) {}
+  function getUrl(obj) {
+    if (!obj) return '';
+    const keys = ['MagnetUri', 'magnet', 'link', 'url', 'href', 'torrent', 'uri', 'Link'];
+    for (const k of keys) {
+      try {
+        if (obj[k]) return String(obj[k]);
+      } catch (e) {}
+    }
+    return '';
   }
 
-  function getMovie(act) {
-    return act && (act.card || act.movie || (act.data && act.data.movie)) || null;
-  }
-
-  function getUrl(movie) {
-    if (!movie) return '';
-    return String(movie.MagnetUri || movie.magnet || movie.link || movie.url || movie.href || movie.torrent || movie.uri || movie.Link || '');
-  }
-
-  function addButton(render, movie) {
+  function copyText(text) {
+    if (!text) return false;
     try {
-      if (!render || !movie) return false;
-      if (render.find('.torrent-test-btn-wrap').length) return true;
-
-      const url = getUrl(movie);
-      if (!url) return false;
-
-      const wrap = $('<div class="torrent-test-btn-wrap" style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;"></div>');
-      const btn = $('<div style="padding:12px 16px; border-radius:10px; background:#2b7cff; color:#fff; font-weight:700; cursor:pointer;">ТЕСТ КНОПКА</div>');
-      btn.on('click hover:enter', function () {
-        toast('URL: ' + url);
-        log('clicked', url);
-      });
-      wrap.append(btn);
-      render.after(wrap);
-      toast('Кнопка добавлена');
-      log('added', url);
-      return true;
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (e) {}
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', 'true');
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      ta.setSelectionRange(0, ta.value.length);
+      const ok = document.execCommand('copy');
+      ta.remove();
+      return ok;
     } catch (e) {
-      log('addButton error', e);
       return false;
     }
   }
 
-  function tryBindCurrent() {
+  function openBrowser(url) {
     try {
-      const act = Lampa.Activity && typeof Lampa.Activity.active === 'function' ? Lampa.Activity.active() : null;
-      if (!act) return false;
-      log('active', act.component, act);
-
-      if (act.component !== 'full' || !act.activity || typeof act.activity.render !== 'function') return false;
-
-      const render = act.activity.render().find('.view--torrent');
-      const movie = getMovie(act);
-      const ok = addButton(render, movie);
-      log('bind current', ok, !!render, !!movie);
-      return ok;
+      window.location.href = url;
+      return true;
     } catch (e) {
-      log('tryBindCurrent error', e);
+      log('open browser failed', e);
       return false;
+    }
+  }
+
+  function addItem(menu, title, cb) {
+    if (!menu) return;
+    const item = { title: title, selected: false, callback: cb };
+    try {
+      if (typeof menu.add === 'function') menu.add(item);
+      else if (Array.isArray(menu)) menu.push(item);
+    } catch (e) {
+      log('addItem error', e);
+    }
+  }
+
+  function clearMenu(menu) {
+    if (!menu) return;
+    try {
+      if (typeof menu.clear === 'function') menu.clear();
+      else if (Array.isArray(menu)) menu.length = 0;
+    } catch (e) {
+      log('clearMenu error', e);
+    }
+  }
+
+  function setupMenu(e) {
+    try {
+      const element = e && e.element ? e.element : null;
+      const item = e && e.item ? e.item : null;
+      const menu = e && e.menu ? e.menu : null;
+      const url = getUrl(element) || getUrl(item);
+
+      log('event', e);
+      log('url', url, 'menu', !!menu);
+
+      if (!url || !menu) return;
+
+      clearMenu(menu);
+
+      addItem(menu, 'Скопировать magnet/ссылку', function () {
+        const ok = copyText(url);
+        toast(ok ? 'Скопировано' : 'Не удалось скопировать');
+      });
+
+      addItem(menu, 'Открыть ссылку в браузере', function () {
+        const ok = openBrowser(url);
+        toast(ok ? 'Открываю браузер' : 'Не удалось открыть браузер');
+      });
+    } catch (err) {
+      log('setupMenu error', err);
     }
   }
 
   function init() {
-    toast('test plugin loaded');
-    tryBindCurrent();
+    try {
+      toast('Плагин подключён');
+      log('init');
 
-    if (window.Lampa && Lampa.Listener && typeof Lampa.Listener.follow === 'function') {
+      if (!window.Lampa || !Lampa.Listener || typeof Lampa.Listener.follow !== 'function') return;
+
       Lampa.Listener.follow('full', function (e) {
         try {
-          log('full event', e);
-          if (e && e.type === 'complite') {
-            const render = e.object && e.object.activity && typeof e.object.activity.render === 'function'
-              ? e.object.activity.render().find('.view--torrent')
-              : null;
-            const movie = e.data && e.data.movie ? e.data.movie : null;
-            const ok = addButton(render, movie);
-            log('full complite', ok);
-          }
+          if (e && e.menu) setupMenu(e);
         } catch (err) {
-          log('listener error', err);
+          log('full listener error', err);
         }
       });
+
+      Lampa.Listener.follow('torrent', function (e) {
+        try {
+          if (e && e.menu) setupMenu(e);
+        } catch (err) {
+          log('torrent listener error', err);
+        }
+      });
+    } catch (e) {
+      log('init error', e);
+      toast('Ошибка плагина: ' + e);
     }
   }
 
   if (window.Lampa && window.appready) init();
+  else if (window.Lampa) document.addEventListener('lampa:init', init, { once: true });
   else document.addEventListener('lampa:init', init, { once: true });
 })();
