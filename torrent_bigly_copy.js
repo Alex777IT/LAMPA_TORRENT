@@ -2,7 +2,7 @@
   if (window.__torrent_bigly_copy_loaded) return;
   window.__torrent_bigly_copy_loaded = true;
 
-  const PLUGIN = 'torrent_bigly_final';
+  const PLUGIN = 'torrent_bigly_button';
 
   function log() {
     try { console.log.apply(console, ['[' + PLUGIN + ']'].concat([].slice.call(arguments))); } catch (e) {}
@@ -15,29 +15,6 @@
     } catch (e) {
       try { alert(msg); } catch (_) {}
     }
-  }
-
-  function inspectEvent(tag, e) {
-    try {
-      log(tag, e);
-      log(tag + ' keys', e ? Object.keys(e) : []);
-      if (e && e.element) log(tag + ' element keys', Object.keys(e.element));
-      if (e && e.item) log(tag + ' item keys', Object.keys(e.item));
-      if (e && e.menu) log(tag + ' menu keys', Object.keys(e.menu));
-    } catch (err) {
-      log(tag + ' inspect error', err);
-    }
-  }
-
-  function pickUrl(obj) {
-    if (!obj) return '';
-    const keys = ['MagnetUri', 'magnet', 'link', 'url', 'href', 'torrent', 'uri', 'Link'];
-    for (const k of keys) {
-      try {
-        if (obj[k]) return String(obj[k]);
-      } catch (e) {}
-    }
-    return '';
   }
 
   function copyText(text) {
@@ -89,78 +66,90 @@
     return false;
   }
 
-  function addItem(menu, title, cb) {
-    if (!menu) return;
-    const item = { title: title, selected: false, callback: cb };
-    try {
-      if (typeof menu.add === 'function') menu.add(item);
-      else if (Array.isArray(menu)) menu.push(item);
-    } catch (e) {
-      log('addItem error', e);
-    }
+  function getUrl(movie) {
+    if (!movie) return '';
+    return String(movie.MagnetUri || movie.magnet || movie.link || movie.url || movie.href || movie.torrent || movie.uri || movie.Link || '');
   }
 
-  function clearMenu(menu) {
-    if (!menu) return;
-    try {
-      if (typeof menu.clear === 'function') menu.clear();
-      else if (Array.isArray(menu)) menu.length = 0;
-    } catch (e) {
-      log('clearMenu error', e);
-    }
+  function addButton(render, movie) {
+    if (!render || !movie) return;
+    if (render.find('.torrent-bigly-btn').length) return;
+
+    const url = getUrl(movie);
+    if (!url) return;
+
+    const btn = $('<div class="torrent-bigly-btn">Скачать торрент в BiglyBT</div>');
+    btn.css({
+      marginTop: '10px',
+      padding: '12px 16px',
+      borderRadius: '10px',
+      background: '#2b7cff',
+      color: '#fff',
+      textAlign: 'center',
+      fontWeight: '700',
+      cursor: 'pointer'
+    });
+
+    btn.on('hover:enter click', function () {
+      const ok = openBigly(url);
+      toast(ok ? 'Открываю BiglyBT' : 'Не удалось открыть BiglyBT');
+    });
+
+    const copy = $('<div class="torrent-bigly-copy">Скопировать ссылку</div>');
+    copy.css({
+      marginTop: '8px',
+      padding: '10px 14px',
+      borderRadius: '10px',
+      background: '#444',
+      color: '#fff',
+      textAlign: 'center',
+      cursor: 'pointer'
+    });
+
+    copy.on('hover:enter click', function () {
+      const ok = copyText(url);
+      toast(ok ? 'Ссылка скопирована' : 'Не удалось скопировать ссылку');
+    });
+
+    render.after(btn);
+    render.after(copy);
+    log('buttons added', url);
   }
 
-  function onEvent(tag, e) {
-    inspectEvent(tag, e);
-    const element = e && e.element ? e.element : null;
-    const item = e && e.item ? e.item : null;
-    const menu = e && e.menu ? e.menu : null;
-    const url = pickUrl(element) || pickUrl(item);
-
-    if (!url) {
-      log('no url in event');
-      return;
-    }
-
-    log('url found', url);
-
-    if (menu) {
-      clearMenu(menu);
-
-      addItem(menu, 'Скопировать ссылку', function () {
-        const ok = copyText(url);
-        toast(ok ? 'Ссылка скопирована' : 'Не удалось скопировать ссылку');
-      });
-
-      addItem(menu, 'Скачать торрент в BiglyBT', function () {
-        const ok = openBigly(url);
-        toast(ok ? 'Открываю BiglyBT' : 'Не удалось открыть BiglyBT');
-      });
-    } else {
-      toast('URL найден: ' + url);
+  function bindToCurrent() {
+    try {
+      const act = Lampa.Activity && typeof Lampa.Activity.active === 'function' ? Lampa.Activity.active() : null;
+      if (!act || act.component !== 'full' || !act.activity || typeof act.activity.render !== 'function') return;
+      const render = act.activity.render().find('.view--torrent');
+      const movie = act.card || act.movie || (act.data && act.data.movie) || null;
+      addButton(render, movie);
+    } catch (e) {
+      log('bind current error', e);
     }
   }
 
   function init() {
     try {
       toast('Плагин подключён');
-      log('init', !!window.Lampa, window.appready);
+      log('init');
+
+      bindToCurrent();
 
       if (!window.Lampa || !Lampa.Listener || typeof Lampa.Listener.follow !== 'function') return;
 
       Lampa.Listener.follow('full', function (e) {
-        onEvent('full', e);
+        try {
+          if (e && e.type === 'complite') {
+            const render = e.object && e.object.activity && typeof e.object.activity.render === 'function'
+              ? e.object.activity.render().find('.view--torrent')
+              : null;
+            const movie = e.data && e.data.movie ? e.data.movie : null;
+            addButton(render, movie);
+          }
+        } catch (err) {
+          log('full listener error', err);
+        }
       });
-
-      Lampa.Listener.follow('torrent', function (e) {
-        onEvent('torrent', e);
-      });
-
-      Lampa.Listener.follow('menu', function (e) {
-        log('menu event', e);
-      });
-
-      log('listeners attached');
     } catch (e) {
       log('init error', e);
       toast('Ошибка плагина: ' + e);
