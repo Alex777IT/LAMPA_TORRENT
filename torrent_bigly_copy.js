@@ -1,54 +1,49 @@
 (function () {
-  if (window.__lampa_diag_loaded) return;
-  window.__lampa_diag_loaded = true;
-
-  function out(msg) {
-    try {
-      console.log('[LAMPA-DIAG]', msg);
-    } catch (e) {}
-    try {
-      if (window.Lampa && Lampa.Noty && typeof Lampa.Noty.show === 'function') Lampa.Noty.show(msg);
-      else if (typeof alert === 'function') alert(msg);
-    } catch (e) {}
-  }
-
-  function safeKeys(obj) {
-    try {
-      return obj ? Object.keys(obj).join(', ') : 'null';
-    } catch (e) {
-      return 'err';
+  try {
+    function show(msg) {
+      try {
+        console.log('[LAMPA-DIAG2]', msg);
+      } catch (e) {}
+      try {
+        if (window.Lampa && Lampa.Noty && typeof Lampa.Noty.show === 'function') {
+          Lampa.Noty.show(msg);
+        }
+      } catch (e) {}
     }
-  }
 
-  function run() {
-    try {
-      const info = [];
-      info.push('appready=' + String(window.appready));
-      info.push('Lampa=' + String(!!window.Lampa));
-      info.push('Listener=' + String(!!(window.Lampa && Lampa.Listener)));
-      info.push('Activity=' + String(!!(window.Lampa && Lampa.Activity)));
-      info.push('Noty=' + String(!!(window.Lampa && Lampa.Noty)));
-      info.push('LampaKeys=' + safeKeys(window.Lampa));
-      out(info.join(' | '));
+    function keys(x) {
+      try {
+        return x ? Object.keys(x).join(', ') : 'null';
+      } catch (e) {
+        return 'err';
+      }
+    }
 
+    show('diag2 loaded');
+    show('Lampa=' + String(!!window.Lampa) + ' appready=' + String(window.appready));
+
+    function run() {
+      show('diag2 init');
       if (window.Lampa && Lampa.Listener && typeof Lampa.Listener.follow === 'function') {
         Lampa.Listener.follow('full', function (e) {
           try {
-            console.log('[LAMPA-DIAG full]', e);
-            const keys = safeKeys(e);
-            const type = e && e.type ? e.type : 'no-type';
-            const movieKeys = e && e.data && e.data.movie ? safeKeys(e.data.movie) : 'no-movie';
-            out('full type=' + type + ' | keys=' + keys + ' | movieKeys=' + movieKeys);
+            console.log('[LAMPA-DIAG2 full]', e);
+            show('full type=' + (e && e.type ? e.type : 'no-type'));
+            show('full keys=' + keys(e));
+            show('data keys=' + keys(e && e.data));
+            show('movie keys=' + keys(e && e.data && e.data.movie));
+            show('object keys=' + keys(e && e.object));
+            show('card keys=' + keys(e && e.object && e.object.card));
           } catch (err) {
-            console.log('[LAMPA-DIAG full error]', err);
+            show('full error ' + err);
           }
         });
       }
-    } catch (e) {
-      out('diag error: ' + e);
     }
-  }
 
-  if (window.Lampa && window.appready) run();
-  else document.addEventListener('lampa:init', run, { once: true });
+    if (window.Lampa && window.appready) run();
+    else document.addEventListener('lampa:init', run, { once: true });
+  } catch (e) {
+    try { console.log('[LAMPA-DIAG2 fatal]', e); } catch (_) {}
+  }
 })();
