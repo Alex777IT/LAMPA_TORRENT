@@ -64,16 +64,30 @@
     }
 
     // --- Открыть magnet-ссылку в Transmission BTC (на этом же устройстве, через Android-intent) ---
+    // ВАЖНО: раньше здесь использовался iframe — Chrome/WebView с версии ~88
+    // блокирует переходы на intent: именно из вложенных iframe (антирекламная
+    // защита), поэтому ничего не происходило. Правильный способ — навигация
+    // верхнего уровня через window.location.
     function openInTransmission(link, done) {
+        var intentUrl = 'intent:' + link.replace(/^magnet:/i, '') +
+            '#Intent;scheme=magnet;package=' + TRANSMISSION_PACKAGE +
+            ';action=android.intent.action.VIEW;S.browser_fallback_url=' +
+            encodeURIComponent('https://play.google.com/store/apps/details?id=' + TRANSMISSION_PACKAGE) +
+            ';end';
+
         try {
-            var iframe = document.createElement('iframe');
-            iframe.style.display = 'none';
-            iframe.src = 'intent:' + link.replace(/^magnet:/i, '') +
-                '#Intent;scheme=magnet;package=' + TRANSMISSION_PACKAGE + ';action=android.intent.action.VIEW;end';
-            document.body.appendChild(iframe);
-            setTimeout(function () {
-                if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
-            }, 2000);
+            // Если есть нативный мост Lampa (Android-сборка) — пробуем сначала его,
+            // это более надёжный путь, чем location.href, если он поддерживает
+            // произвольный intent, а не только запуск плеера.
+            if (window.Android && typeof window.Android.openPlayer === 'function') {
+                try {
+                    window.Android.openPlayer(link, { title: 'torrent' });
+                } catch (e) {
+                    // не критично, продолжаем через location
+                }
+            }
+
+            window.location.href = intentUrl;
             done(true);
         } catch (e) {
             done(false, 'Не удалось вызвать intent на этой платформе');
