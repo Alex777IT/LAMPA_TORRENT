@@ -1,85 +1,72 @@
 (function () {
-  if (window.__torrent_menu_actions_loaded) return;
-  window.__torrent_menu_actions_loaded = true;
+  if (window.__lampa_extra_button_final) return;
+  window.__lampa_extra_button_final = true;
 
-  function toast(msg) {
+  function safeToast(msg) {
     try {
       if (window.Lampa && Lampa.Noty && typeof Lampa.Noty.show === 'function') Lampa.Noty.show(msg);
     } catch (e) {}
   }
 
-  function getActive() {
+  function addButton(opts) {
     try {
-      return window.Lampa && Lampa.Activity && typeof Lampa.Activity.active === 'function'
-        ? Lampa.Activity.active()
-        : null;
-    } catch (e) {
-      return null;
-    }
+      if (!opts || !opts.render || !opts.render.length) return;
+      if (opts.render.find('.lampa-extra-final-btn').length) return;
+
+      var btn = $('<div/>', {
+        class: 'lampa-extra-final-btn',
+        text: 'Тест',
+        click: function () {
+          safeToast('Кнопка нажата');
+        }
+      });
+
+      btn.css({
+        display: 'inline-block',
+        padding: '12px 16px',
+        margin: '0 0 0 10px',
+        borderRadius: '10px',
+        background: '#e11d48',
+        color: '#fff',
+        fontSize: '16px',
+        fontWeight: '700',
+        cursor: 'pointer'
+      });
+
+      opts.render.append(btn);
+      safeToast('Кнопка добавлена');
+    } catch (e) {}
   }
 
-  function safeRender(active) {
+  function startPlugin() {
     try {
-      return active && active.activity && typeof active.activity.render === 'function'
-        ? active.activity.render()
-        : null;
-    } catch (e) {
-      return null;
-    }
-  }
+      if (window.Lampa && Lampa.Listener && typeof Lampa.Listener.follow === 'function') {
+        Lampa.Listener.follow('full', function (e) {
+          try {
+            if (e && e.type == 'complite') {
+              addButton({
+                render: e.object.activity.render().find('.view--torrent'),
+                movie: e.data.movie
+              });
+            }
+          } catch (err) {}
+        });
+      }
+    } catch (e) {}
 
-  function makeButton() {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = 'Тест';
-    b.className = 'torrent_menu_action_test_btn';
-    b.style.cssText = 'padding:14px 18px;border:0;border-radius:10px;background:#e11d48;color:#fff;font-size:16px;font-weight:700;margin:0 0 0 10px;';
-    b.onclick = function () {
-      toast('Кнопка нажата');
-    };
-    return b;
-  }
-
-  function findTarget(root) {
-    if (!root || !root.querySelector) return null;
-    return (
-      root.querySelector('.view--actions') ||
-      root.querySelector('.view--torrent') ||
-      root.querySelector('.full--buttons') ||
-      root.querySelector('.full__buttons') ||
-      root.querySelector('.buttons') ||
-      root.querySelector('[class*="button"]') ||
-      null
-    );
-  }
-
-  function inject() {
     try {
-      const active = getActive();
-      if (!active || active.component !== 'full') return false;
-
-      const root = safeRender(active);
-      if (!root || !root.querySelector) return false;
-
-      if (root.querySelector('.torrent_menu_action_test_btn')) return true;
-
-      const target = findTarget(root) || root;
-      if (!target || !target.appendChild) return false;
-
-      target.appendChild(makeButton());
-      toast('Тестовая кнопка добавлена');
-      return true;
-    } catch (e) {
-      return false;
-    }
+      if (window.Lampa && Lampa.Activity && typeof Lampa.Activity.active === 'function') {
+        var active = Lampa.Activity.active();
+        if (active && active.component == 'full') {
+          addButton({
+            render: active.activity.render().find('.view--torrent'),
+            movie: active.card
+          });
+        }
+      }
+    } catch (e) {}
   }
 
-  function start() {
-    toast('Плагин запущен');
-    inject();
-    setInterval(inject, 1000);
-  }
-
-  if (window.Lampa && window.appready) start();
-  else document.addEventListener('lampa:init', start, { once: true });
+  if (window.Lampa && window.appready) startPlugin();
+  else document.addEventListener('lampa:init', startPlugin, { once: true });
 })();
