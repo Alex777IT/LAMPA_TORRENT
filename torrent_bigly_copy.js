@@ -4,8 +4,6 @@
     if (window.__torrent_link_tools_loaded) return;
     window.__torrent_link_tools_loaded = true;
 
-    var TRANSMISSION_PACKAGE = 'com.ap.transmission.btc'; // Transmission BTC для Android
-
     // --- Копирование в буфер обмена ---
     function copyToClipboard(text, done) {
         var ok = false;
@@ -63,36 +61,6 @@
         });
     }
 
-    // --- Открыть magnet-ссылку в Transmission BTC (на этом же устройстве, через Android-intent) ---
-    // ВАЖНО: раньше здесь использовался iframe — Chrome/WebView с версии ~88
-    // блокирует переходы на intent: именно из вложенных iframe (антирекламная
-    // защита), поэтому ничего не происходило. Правильный способ — навигация
-    // верхнего уровня через window.location.
-    function openInTransmission(link, done) {
-        var intentUrl = 'intent:' + link.replace(/^magnet:/i, '') +
-            '#Intent;scheme=magnet;package=' + TRANSMISSION_PACKAGE +
-            ';action=android.intent.action.VIEW;S.browser_fallback_url=' +
-            encodeURIComponent('https://play.google.com/store/apps/details?id=' + TRANSMISSION_PACKAGE) +
-            ';end';
-
-        try {
-            // Если есть нативный мост Lampa (Android-сборка) — пробуем сначала его,
-            // это более надёжный путь, чем location.href, если он поддерживает
-            // произвольный intent, а не только запуск плеера.
-            if (window.Android && typeof window.Android.openPlayer === 'function') {
-                try {
-                    window.Android.openPlayer(link, { title: 'torrent' });
-                } catch (e) {
-                    // не критично, продолжаем через location
-                }
-            }
-
-            window.location.href = intentUrl;
-            done(true);
-        } catch (e) {
-            done(false, 'Не удалось вызвать intent на этой платформе');
-        }
-    }
 
     // --- Реальное скачивание .torrent-файла на диск ТВ ---
     // Работает только для настоящих http(s)-ссылок на файл (не magnet).
@@ -132,9 +100,7 @@
 
             var menu = [];
 
-            if (isMagnet) {
-                menu.push({ title: 'Открыть в Transmission BTC', opentr: true });
-            } else if (link) {
+            if (!isMagnet && link) {
                 menu.push({ title: 'Скачать .torrent файл на ТВ', download: true });
             }
 
@@ -154,13 +120,7 @@
                         return;
                     }
 
-                    if (a.opentr) {
-                        openInTransmission(link, function (ok, msg) {
-                            if (ok) Lampa.Noty.show('Передаю ссылку в Transmission BTC...');
-                            else Lampa.Noty.show(msg || 'Не получилось открыть');
-                        });
-                        Lampa.Controller.toggle(enabled);
-                    } else if (a.download) {
+                    if (a.download) {
                         downloadTorrentFile(link, element.Title, function (ok) {
                             Lampa.Noty.show(ok ? 'Загрузка .torrent файла начата' : 'Не удалось начать загрузку');
                         });
