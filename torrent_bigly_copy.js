@@ -236,8 +236,13 @@
                     } else if (a.configbt) {
                         askBiglyAddress(function (value) {
                             Lampa.Noty.show(value ? 'Адрес BiglyBT сохранён' : 'Отменено');
+                            // Небольшая задержка, чтобы не гнаться за собственным
+                            // закрытием диалога ввода — иначе можем восстановить
+                            // контроллер до того, как он сам освободит фокус.
+                            setTimeout(function () {
+                                Lampa.Controller.toggle(enabled);
+                            }, 100);
                         });
-                        return; // Input сам управляет контроллером
                     } else if (a.download) {
                         downloadTorrentFile(fileLink, element.Title, function (ok) {
                             Lampa.Noty.show(ok ? 'Загрузка .torrent файла начата' : 'Не удалось начать загрузку');
